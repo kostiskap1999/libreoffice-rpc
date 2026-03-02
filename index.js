@@ -70,18 +70,23 @@ rpc.on('ready', () => {
 
       // -------- UPDATE DISCORD IF NEEDED --------
       if (somethingChanged || !lastRunningState) {
-        rpc.setActivity({
+        const activity = {
           details: lastFileName
             ? "In a file"
             : "Not in a file",
-          state: lastFocusState
-            ? "Writing a masterpiece"
-            : "Probably procrastinating",
           startTimestamp: sessionStart,
           largeImageKey: "libreoffice",
           largeImageText: "LibreOffice",
           instance: false
-        })
+        }
+
+        if (lastFileName) {
+          activity.state = lastFocusState
+            ? "Writing a masterpiece"
+            : "Probably procrastinating"
+        }
+
+        rpc.setActivity(activity)
       }
 
       lastRunningState = true
