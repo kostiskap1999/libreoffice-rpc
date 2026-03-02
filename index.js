@@ -7,64 +7,104 @@ RPC.register(clientId)
 
 const rpc = new RPC.Client({ transport: 'ipc' })
 
-const NULL_THRESHOLD = 2 // 2 * 3s = 6s
+// ===== CONFIG =====
+const POLL_INTERVAL = 3000        // 3 seconds
+const IDLE_DELAY = 30000          // 30 seconds
+const NULL_THRESHOLD = 2          // 2 * 3s = 6s file null debounce
 
+// ===== STATE =====
 let sessionStart = null
 let lastFileName = null
 let lastRunningState = false
+let lastFocusState = null
+let lastFocusedAt = null
 let nullFileCounter = 0
-let rpcObject = {
-                  details: 'Not in a file',
-                  state: 'LibreOffice Open',
-                  startTimestamp: sessionStart,
-                  largeImageKey: 'libreoffice',
-                  largeImageText: 'LibreOffice',
-                  instance: false
-                }
 
 rpc.on('ready', () => {
   console.log('Rich Presence running…')
 
   setInterval(() => {
-    console.log("===================START======================")
     const libreInfo = checkLibreOffice()
-    
+    const now = Date.now()
+
+    // ====================================
+    // LibreOffice IS running
+    // ====================================
     if (libreInfo.isRunning) {
       sessionStart ??= new Date()
+      let somethingChanged = false
 
+      
+      // -------- FILE DETECTION --------
       if (libreInfo.fileName) {
         nullFileCounter = 0
 
-        if (libreInfo.fileName !== lastFileName || !lastRunningState) {
-          console.log("--libreInfo--")
-          console.log(libreInfo)
-          rpcObject.details = `Editing: ${libreInfo.fileName}`
+        if (libreInfo.fileName !== lastFileName) {
           lastFileName = libreInfo.fileName
+          somethingChanged = true
         }
       } else {
         nullFileCounter++
 
         if (nullFileCounter >= NULL_THRESHOLD && lastFileName !== null) {
-          rpcObject.details = 'Not in a file'
           lastFileName = null
+          somethingChanged = true
         }
       }
 
-      rpc.setActivity(rpcObject)
+
+      // -------- FOCUS DETECTION --------
+      const now = Date.now()
+      if (libreInfo.isFocused)
+        lastFocusedAt = now
+
+      let effectiveFocusState = false
+      if (lastFocusedAt && (now - lastFocusedAt) < IDLE_DELAY)
+        effectiveFocusState = true
+
+      if (effectiveFocusState !== lastFocusState) {
+        lastFocusState = effectiveFocusState
+        somethingChanged = true
+      }
+
+
+      // -------- UPDATE DISCORD IF NEEDED --------
+      if (somethingChanged || !lastRunningState) {
+        rpc.setActivity({
+          details: lastFileName
+            ? "In a file"
+            : "Not in a file",
+          state: lastFocusState
+            ? "Writing a masterpiece"
+            : "Probably procrastinating",
+          startTimestamp: sessionStart,
+          largeImageKey: "libreoffice",
+          largeImageText: "LibreOffice",
+          instance: false
+        })
+      }
+
       lastRunningState = true
-    } else {
+    }
+
+    // ====================================
+    // LibreOffice CLOSED
+    // ====================================
+    else {
       nullFileCounter = 0
+
       if (lastRunningState) {
         rpc.clearActivity()
         sessionStart = null
         lastFileName = null
+        lastFocusState = null
+        lastFocusedAt = null
       }
 
       lastRunningState = false
     }
-    console.log("===================END======================\n")
-  }, 3000)
+
+  }, POLL_INTERVAL)
 })
 
 rpc.login({ clientId }).catch(console.error)
-
