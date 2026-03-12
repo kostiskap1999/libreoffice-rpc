@@ -9,7 +9,7 @@ const rpc = new RPC.Client({ transport: 'ipc' })
 
 // ===== CONFIG =====
 const POLL_INTERVAL = 3000        // 3 seconds
-const IDLE_DELAY = 30000          // 30 seconds
+const IDLE_DELAY = 60000          // 60 seconds
 const NULL_THRESHOLD = 2          // 2 * 3s = 6s file null debounce
 
 // ===== STATE =====
